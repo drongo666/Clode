@@ -46,7 +46,7 @@ function garage(t, revealT){
   <!-- shelf with helmets -->
   <rect x="490" y="380" width="260" height="14" fill="#7a5530" ${O}/>
   <path d="M520 380 a35 35 0 0 1 70 0Z" fill="#d6372b" ${O}/><path d="M610 380 a35 35 0 0 1 70 0Z" fill="#f0c419" ${O}/>
-  <!-- old cruiser (Кардана) -->
+  <!-- old cruiser (Деда Асфальта) -->
   <g transform="translate(-180,640) scale(0.95)">
    <circle cx="90" cy="300" r="90" fill="#222" ${O}/><circle cx="90" cy="300" r="55" fill="#bbb" ${O}/>
    <circle cx="420" cy="300" r="90" fill="#222" ${O}/><circle cx="420" cy="300" r="55" fill="#bbb" ${O}/>
@@ -238,7 +238,7 @@ function sportBike(x,y,sc,col='#e8e8ee',acc='#d6372b'){
    <path d="M0 -40 L-60 -30" stroke="#aaa" stroke-width="18" stroke-linecap="round"/>
   </g>`;
 }
-function tinyRider(x,y,sc){ // Хрустам leaning on sportbike
+function tinyRider(x,y,sc){ // Хрустик leaning on sportbike
   return `<g transform="translate(${x},${y}) scale(${sc})">
    <path d="M120 -150 L200 -260 L300 -230" fill="none" stroke="${C.hood}" stroke-width="44" stroke-linecap="round"/>
    <path d="M120 -150 L200 -110 L190 -40" fill="none" stroke="${C.jeans}" stroke-width="36" stroke-linecap="round"/>
@@ -302,10 +302,12 @@ function title(t,p){
   return `<rect width="720" height="1280" fill="#15121c"/>
    ${Array.from({length:14},(_,i)=>`<line x1="${360+Math.cos(i*0.45)*80}" y1="${640+Math.sin(i*0.45)*80}" x2="${360+Math.cos(i*0.45)*900}" y2="${640+Math.sin(i*0.45)*900}" stroke="#2a2335" stroke-width="40"/>`).join('')}
    <g transform="translate(${sh},${-sh/2})" opacity="${a}">
-   ${sportBike(180,860,0.6,'#f0c419','#1b1b1f')}
-   <path d="M430 760 L720 640 L720 900Z" fill="#fff8b0" opacity="${0.25+0.15*Math.sin(T*20)}"/>
-   <text x="360" y="470" ${FONT} font-size="118" text-anchor="middle" fill="#ffb02e" stroke="#1b1b1f" stroke-width="8" paint-order="stroke" transform="rotate(-5 360 450)">ХРУСТАМ</text>
-   <text x="360" y="560" ${FONT} font-size="44" text-anchor="middle" fill="#fff">СЕРИЯ 1</text>
+   ${sportBike(180,920,0.6,'#f0c419','#1b1b1f')}
+   <path d="M430 820 L720 700 L720 960Z" fill="#fff8b0" opacity="${0.25+0.15*Math.sin(T*20)}"/>
+   <text x="360" y="470" ${FONT} font-size="120" text-anchor="middle" fill="#ffb02e" stroke="#1b1b1f" stroke-width="8" paint-order="stroke" transform="rotate(-5 360 450)">ХРУСТИК</text>
+   <text x="360" y="545" ${FONT} font-size="40" text-anchor="middle" fill="#fff">и</text>
+   <text x="360" y="630" ${FONT} font-size="74" text-anchor="middle" fill="#b9b4c8" stroke="#1b1b1f" stroke-width="6" paint-order="stroke" transform="rotate(-5 360 610)">ДЕД АСФАЛЬТ</text>
+   <text x="360" y="720" ${FONT} font-size="36" text-anchor="middle" fill="#fff">СЕРИЯ 1</text>
    <text x="360" y="1040" ${FONT} font-size="64" text-anchor="middle" fill="#ff5a4a" stroke="#1b1b1f" stroke-width="4" paint-order="stroke" opacity="${ease((T-0.8)/0.4)}">«ЛИТР В КУСТАХ»</text>
    <text x="360" y="1130" ${FONT} font-size="30" text-anchor="middle" fill="#9a93aa" opacity="${ease((T-1.4)/0.4)}">продолжение следует...</text>
    </g>`;
@@ -326,7 +328,7 @@ function subtitle(t){
   const frac=(t-l.start)/(l.end-l.start);
   for(k=0;k<chunks.length;k++){ acc+=chunks[k].length; if(frac<=acc/total) break; }
   const rows = wrap(chunks[Math.min(k,chunks.length-1)], 24);
-  const name = l.spk==='K' ? 'ДЕД КАРДАН' : 'ХРУСТАМ';
+  const name = l.spk==='K' ? 'ДЕД АСФАЛЬТ' : 'ХРУСТИК';
   const col = l.spk==='K' ? '#ffb02e' : '#ff6a4a';
   const h = 60 + rows.length*52, y0 = 1265-h;
   return `<rect x="30" y="${y0}" width="660" height="${h}" rx="22" fill="#000" opacity=".62"/>
