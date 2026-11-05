@@ -1,0 +1,367 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>html,body{margin:0;background:#000}svg{display:block}</style></head>
+<body>
+<svg id="s" width="720" height="1280" viewBox="0 0 720 1280" xmlns="http://www.w3.org/2000/svg"></svg>
+<script>
+// Episode renderer: render(t) draws frame at time t (seconds). Timeline in window.TL.
+const O = 'stroke="#1b1b1f" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"';
+const O3 = 'stroke="#1b1b1f" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"';
+const FONT = 'font-family="Impact, \'Arial Black\', \'DejaVu Sans\', sans-serif" font-weight="900"';
+const cl = (x,a=0,b=1)=>Math.max(a,Math.min(b,x));
+const ease = x => { x=cl(x); return x*x*(3-2*x); };
+const C = { skin:'#ffd9b0', skinK:'#e8b48a', hair:'#e2482b', hood:'#26262c', jeans:'#34497a', beard:'#e9e9ee', vest:'#2b2220', purple:'#7b3fd1' };
+
+let TL = null;
+
+function lineAt(t){ return TL.lines.find(l=>t>=l.start && t<l.end); }
+function shotAt(t){ return TL.shots.find(s=>t>=s.start && t<s.end) || TL.shots[TL.shots.length-1]; }
+function mouthOf(spk,t){ const l=lineAt(t); if(!l||l.spk!==spk) return 0;
+  const i=Math.floor((t-l.start)*TL.fps); return l.env[Math.min(i,l.env.length-1)]||0; }
+function blink(t,seed){ const p=(t+seed)%3.7; return p<0.12; }
+function firstShot(key){ return TL.shots.find(s=>s[key]); }
+
+// ---------------- SET ----------------
+function garage(t, revealT){
+  let s = `
+  <rect x="-200" y="0" width="1120" height="900" fill="#55616e"/>
+  ${Array.from({length:18},(_,r)=>Array.from({length:12},(_,c)=>`<rect x="${-200+c*100+(r%2)*50}" y="${r*50}" width="96" height="46" fill="#5d6a78"/>`).join('')).join('')}
+  <rect x="-200" y="880" width="1120" height="500" fill="#8e8a86" ${O}/>
+  <ellipse cx="420" cy="1010" rx="120" ry="22" fill="#6f6b67"/>
+  <!-- window -->
+  <rect x="270" y="110" width="200" height="150" fill="#bfe8ff" ${O}/>
+  <line x1="370" y1="110" x2="370" y2="260" ${O}/><line x1="270" y1="185" x2="470" y2="185" ${O}/>
+  <!-- pegboard with tools -->
+  <rect x="-170" y="120" width="380" height="220" fill="#b98a55" ${O}/>
+  <path d="M-130 160 l0 120 M-140 160 l20 0" ${O} stroke-width="9"/>
+  <circle cx="-60" cy="220" r="40" fill="none" ${O} stroke-width="12"/>
+  <path d="M30 150 l0 140 M10 150 q20 -20 40 0" ${O} stroke-width="9"/>
+  <rect x="90" y="170" width="90" height="40" rx="8" fill="#d6372b" ${O}/>
+  <!-- poster -->
+  <g transform="rotate(4 600 200)"><rect x="520" y="110" width="170" height="220" fill="#f2e6c9" ${O}/>
+   <text x="605" y="170" ${FONT} font-size="40" text-anchor="middle" fill="#d6372b">МОТО</text>
+   <text x="605" y="215" ${FONT} font-size="30" text-anchor="middle" fill="#1b1b1f">СЕЗОН</text>
+   <circle cx="575" cy="280" r="25" fill="none" ${O}/><circle cx="640" cy="280" r="25" fill="none" ${O}/>
+   <path d="M575 280 L600 250 L640 280" fill="none" ${O}/></g>
+  <!-- shelf with helmets -->
+  <rect x="490" y="380" width="260" height="14" fill="#7a5530" ${O}/>
+  <path d="M520 380 a35 35 0 0 1 70 0Z" fill="#d6372b" ${O}/><path d="M610 380 a35 35 0 0 1 70 0Z" fill="#f0c419" ${O}/>
+  <!-- old cruiser (Кардана) -->
+  <g transform="translate(-180,640) scale(0.95)">
+   <circle cx="90" cy="300" r="90" fill="#222" ${O}/><circle cx="90" cy="300" r="55" fill="#bbb" ${O}/>
+   <circle cx="420" cy="300" r="90" fill="#222" ${O}/><circle cx="420" cy="300" r="55" fill="#bbb" ${O}/>
+   <path d="M90 300 L200 210 L360 200 L420 300" fill="none" stroke="#c0c0c8" stroke-width="16"/>
+   <path d="M150 190 Q250 140 340 180 L330 215 L170 225Z" fill="#6b1d1d" ${O}/>
+   <path d="M200 260 L330 260 L320 310 L210 310Z" fill="#9a9aa2" ${O}/>
+   <path d="M360 150 L420 300" stroke="#c0c0c8" stroke-width="14"/>
+   <path d="M330 120 L400 140" ${O} stroke-width="10"/>
+   <path d="M60 270 L250 300" stroke="#d8d8de" stroke-width="12" stroke-linecap="round"/>
+  </g>`;
+  // tarp / naked bike (right back)
+  const r = revealT===null ? 0 : ease((t-revealT)/0.6);
+  if (r < 1) {
+    const dx = r*500, dy = -r*300, rot = r*40;
+    s += `<g transform="translate(${dx},${dy}) rotate(${rot} 640 760)">
+     <path d="M500 900 Q490 700 600 650 Q700 620 760 700 L790 900Z" fill="#7d8b5a" ${O}/>
+     <path d="M560 700 Q600 760 590 880 M690 680 Q700 780 720 890" fill="none" ${O3} stroke="#5c6840"/></g>`;
+  }
+  if (r > 0) s += nakedBike(560, 900, 0.62, t, revealT);
+  return s;
+}
+
+function nakedBike(x,y,sc,t,revealT){
+  const sp = revealT!==null && t-revealT<1.6 ? 1-(t-revealT)/1.6 : 0;
+  let spark=''; if(sp>0){ for(let i=0;i<5;i++){ const a=i*1.3+t*3, rr=160+30*Math.sin(t*9+i);
+    const cx=x+120+Math.cos(a)*rr, cy=y-150+Math.sin(a)*rr*0.6, z=12+8*Math.sin(t*12+i);
+    spark+=`<path d="M${cx} ${cy-z} L${cx+z/3} ${cy-z/3} L${cx+z} ${cy} L${cx+z/3} ${cy+z/3} L${cx} ${cy+z} L${cx-z/3} ${cy+z/3} L${cx-z} ${cy} L${cx-z/3} ${cy-z/3}Z" fill="#fff6a0" opacity="${sp}" ${O3}/>`; } }
+  return `<g transform="translate(${x},${y}) scale(${sc})">
+   <circle cx="0" cy="-90" r="90" fill="#222" ${O}/><circle cx="0" cy="-90" r="55" fill="#666" ${O}/>
+   <circle cx="330" cy="-90" r="90" fill="#222" ${O}/><circle cx="330" cy="-90" r="55" fill="#666" ${O}/>
+   <path d="M0 -90 L130 -150" stroke="#333" stroke-width="16"/>
+   <path d="M300 -300 L330 -90" stroke="#e0a526" stroke-width="16"/>
+   <rect x="110" y="-210" width="120" height="100" rx="14" fill="#444" ${O}/>
+   <path d="M40 -230 L160 -240 L280 -300 L310 -260 L240 -200 L120 -195 L50 -205Z" fill="#f0c419" ${O}/>
+   <path d="M60 -255 L170 -262 L170 -240 L60 -232Z" fill="#1b1b1f" ${O3}/>
+   <circle cx="320" cy="-290" r="26" fill="#fff8b0" ${O}/>
+   <path d="M270 -330 L320 -345" ${O} stroke-width="10"/>
+  </g>${spark}`;
+}
+
+// ---------------- CHARACTERS ----------------
+function kardan(t, st){
+  const m = mouthOf('K',t);
+  const talk = m>0.05;
+  const laugh = st.laugh ? 1 : 0;
+  const shake = laugh ? Math.sin(t*30)*4 : 0;
+  const breathe = Math.sin(t*2.2)*3;
+  const hx = 215 + shake, hy = 560 + breathe + (talk? Math.sin(t*9)*3 : 0);
+  const bl = blink(t,0.4);
+  const thumb = st.thumb;
+  // spit spray
+  let spray=''; if(st.spit){ const p=st.spitP; for(let i=0;i<14;i++){ const a=-0.5+i*0.07, d=40+p*320*(0.6+((i*37)%10)/20);
+     spray+=`<circle cx="${hx+70+Math.cos(a)*d}" cy="${hy+70+Math.sin(a)*d+p*p*120}" r="${7-p*3}" fill="#c98a3a" opacity="${1-p}"/>`; }
+     spray+=`<path d="M${hx+60} ${hy+60} q${60+p*200} ${-20} ${120+p*300} ${10}" fill="none" stroke="#c98a3a" stroke-width="${18*(1-p)}" stroke-linecap="round" opacity="${1-p}"/>`; }
+  const mugUp = st.spit ? 1 : (talk?0:0.3);
+  return `
+  <!-- stool -->
+  <path d="M120 1000 L140 860 M300 1000 L280 860 M210 1010 L210 860" ${O} stroke-width="12"/>
+  <rect x="100" y="840" width="220" height="30" rx="10" fill="#7a5530" ${O}/>
+  <!-- legs -->
+  <path d="M120 850 L60 860 L60 1010 L120 1010 L130 900 Z" fill="#2c3550" ${O}/>
+  <path d="M300 850 L360 870 L370 1010 L310 1010 L290 900Z" fill="#2c3550" ${O}/>
+  <path d="M30 1000 L130 1000 L130 1040 L20 1040 Q15 1015 30 1000Z" fill="#3a2a20" ${O}/>
+  <path d="M300 1000 L400 1000 Q410 1020 400 1040 L300 1040Z" fill="#3a2a20" ${O}/>
+  <g transform="translate(${shake},${breathe*0.5})">
+  <!-- body -->
+  <path d="M70 860 Q40 700 110 640 L320 640 Q390 700 360 860Z" fill="#6a6f78" ${O}/>
+  <ellipse cx="215" cy="790" rx="150" ry="95" fill="#6a6f78" ${O}/>
+  <path d="M70 860 Q40 700 110 640 L170 640 L160 860Z" fill="${C.vest}" ${O}/>
+  <path d="M360 860 Q390 700 320 640 L265 640 L275 860Z" fill="${C.vest}" ${O}/>
+  <circle cx="320" cy="720" r="18" fill="#d6372b" ${O3}/><text x="320" y="728" ${FONT} font-size="20" text-anchor="middle" fill="#fff">25</text>
+  </g>
+  <!-- left arm with mug -->
+  <path d="M100 670 Q40 760 120 ${800-mugUp*60}" fill="none" stroke="${C.skinK}" stroke-width="46" stroke-linecap="round"/>
+  <path d="M100 670 Q40 760 120 ${800-mugUp*60}" fill="none" stroke="#1b1b1f" stroke-width="54" stroke-linecap="round" opacity=".0"/>
+  <path d="M60 730 l20 10 m-15 15 l25 5" stroke="#3a5a8a" stroke-width="5"/>
+  <g transform="translate(${130},${790-mugUp*80}) rotate(${st.spit?-30:0})">
+   <rect x="-10" y="-40" width="55" height="65" rx="6" fill="#f4f4f4" ${O}/>
+   <path d="M45 -25 q22 0 22 18 q0 18 -22 18" fill="none" ${O}/>
+   <text x="17" y="0" ${FONT} font-size="16" text-anchor="middle" fill="#d6372b">ДЕД</text></g>
+  <!-- right arm -->
+  ${thumb ? `<path d="M330 670 Q420 600 400 500" fill="none" stroke="${C.skinK}" stroke-width="46" stroke-linecap="round"/>
+     <circle cx="400" cy="490" r="30" fill="${C.skinK}" ${O}/><rect x="392" y="430" width="18" height="50" rx="9" fill="${C.skinK}" ${O}/>`
+   : `<path d="M330 670 Q400 760 330 830" fill="none" stroke="${C.skinK}" stroke-width="46" stroke-linecap="round"/>
+     <circle cx="325" cy="835" r="27" fill="${C.skinK}" ${O}/>`}
+  <!-- head -->
+  <g transform="translate(${hx-215},${hy-560})">
+   <circle cx="215" cy="560" r="95" fill="${C.skinK}" ${O}/>
+   <circle cx="122" cy="575" r="20" fill="${C.skinK}" ${O}/><circle cx="308" cy="575" r="20" fill="${C.skinK}" ${O}/>
+   <!-- beard -->
+   <path d="M125 590 Q120 720 170 790 Q215 840 260 790 Q310 720 305 590 Q270 640 215 640 Q160 640 125 590Z" fill="${C.beard}" ${O}/>
+   <path d="M170 700 q10 40 0 70 M215 700 q10 50 0 100 M260 700 q-10 40 0 70" fill="none" stroke="#c5c5cc" stroke-width="4"/>
+   <!-- mouth -->
+   <ellipse cx="215" cy="${655+m*6}" rx="${30+m*6}" ry="${4+m*26+laugh*10}" fill="#5a1d24" ${O}/>
+   ${m>0.35||laugh?`<rect x="${200}" y="${652}" width="30" height="10" fill="#fff"/>`:''}
+   <!-- moustache -->
+   <path d="M150 630 Q180 605 215 625 Q250 605 280 630 Q260 650 215 640 Q170 650 150 630Z" fill="#f4f4f8" ${O}/>
+   <!-- nose -->
+   <ellipse cx="215" cy="595" rx="28" ry="22" fill="#e07a6a" ${O}/>
+   <!-- glasses -->
+   <path d="M135 540 L295 540" ${O} stroke-width="8"/>
+   <rect x="140" y="530" width="65" height="45" rx="14" fill="#1b1b1f" ${O}/>
+   <rect x="225" y="530" width="65" height="45" rx="14" fill="#1b1b1f" ${O}/>
+   <path d="M150 540 l20 0 M235 540 l20 0" stroke="#fff" stroke-width="5" opacity=".6"/>
+   <!-- bandana -->
+   <path d="M118 520 Q130 440 215 435 Q300 440 312 520 Q215 495 118 520Z" fill="#1b1b1f" ${O}/>
+   ${[[160,480],[200,465],[245,470],[280,495],[180,505]].map(([x,y])=>`<circle cx="${x}" cy="${y}" r="6" fill="#fff"/>`).join('')}
+   <path d="M305 505 l40 20 l-10 25 Z" fill="#1b1b1f" ${O}/>
+   ${laugh?`<path d="M140 520 l-25 -20 M145 505 l-15 -30 M290 520 l25 -20" ${O} stroke-width="4"/>`:''}
+  </g>
+  ${spray}`;
+}
+
+function hrustam(t, st){
+  const m = mouthOf('H',t);
+  const talk = m>0.05;
+  let bx = 530, by = 0, walk = 0;
+  if (st.enterP!==undefined && st.enterP<1){ bx = 530 + (1-ease(st.enterP))*420; walk = Math.sin(t*22); by = -Math.abs(walk)*14; }
+  const breathe = Math.sin(t*2.6+1)*2;
+  const hy = 560 + by + breathe + (talk? Math.sin(t*11)*3 : 0);
+  const bl = blink(t,1.9);
+  const excited = st.excited;
+  const shy = st.shy, count = st.count;
+  const hx = bx + (talk? Math.sin(t*5)*4:0);
+  // hair spikes
+  const sp=[[-75,-10],[-70,-75],[-45,-50],[-30,-115],[-5,-65],[15,-125],[35,-70],[60,-110],[70,-50],[85,-70],[78,-5]];
+  let hair = `M${hx-78} ${hy-5}`; sp.forEach(([x,y])=>hair+=` L${hx+x} ${hy+y}`); hair+=` Q${hx} ${hy-40} ${hx-78} ${hy-5}Z`;
+  const eyeY = hy-5, lx=hx-30, rx=hx+30;
+  let eyes;
+  if (count) {
+    eyes = [lx,rx].map(x=>`<circle cx="${x}" cy="${eyeY}" r="22" fill="#fff" ${O}/><path d="M${x} ${eyeY} m-10 0 a10 10 0 1 1 10 10 a6 6 0 1 1 -6 -6" fill="none" stroke="#1b1b1f" stroke-width="4" transform="rotate(${t*400} ${x} ${eyeY})"/>`).join('');
+  } else if (bl) {
+    eyes = `<path d="M${lx-18} ${eyeY} q18 8 36 0 M${rx-18} ${eyeY} q18 8 36 0" fill="none" ${O}/>`;
+  } else {
+    const big = excited? 26:22, pup = excited? 9:8;
+    eyes = [lx,rx].map(x=>`<circle cx="${x}" cy="${eyeY}" r="${big}" fill="#fff" ${O}/><circle cx="${x-6}" cy="${eyeY+2}" r="${pup}" fill="#1b1b1f"/>${excited?`<circle cx="${x-3}" cy="${eyeY-3}" r="3" fill="#fff"/>`:''}`).join('');
+  }
+  const brows = shy ? `<path d="M${lx-20} ${eyeY-30} l30 -8 M${rx+20} ${eyeY-30} l-30 -8" ${O} stroke-width="6"/>`
+     : `<path d="M${lx-20} ${eyeY-34} q20 -12 36 0 M${rx-16} ${eyeY-34} q20 -12 36 0" fill="none" ${O} stroke-width="6"/>`;
+  const mouth = m>0.04 ? `<ellipse cx="${hx-5}" cy="${hy+42}" rx="${16+m*8}" ry="${3+m*20}" fill="#7a1f2b" ${O}/>`
+     : shy ? `<path d="M${hx-25} ${hy+45} q12 -8 22 0 q12 8 22 0" fill="none" ${O}/>`
+     : `<path d="M${hx-25} ${hy+38} Q${hx-5} ${hy+55} ${hx+18} ${hy+36}" fill="none" ${O}/>`;
+  const legL = walk*25, legR = -walk*25;
+  return `
+  <!-- legs -->
+  <path d="M${bx-35} 820 L${bx-40+legL} 1040" stroke="${C.jeans}" stroke-width="44" stroke-linecap="round"/>
+  <path d="M${bx+35} 820 L${bx+40+legR} 1040" stroke="${C.jeans}" stroke-width="44" stroke-linecap="round"/>
+  <path d="M${bx-80+legL} 1030 L${bx-15+legL} 1030 L${bx-15+legL} 1065 L${bx-85+legL} 1065Z" fill="#fff" ${O}/>
+  <path d="M${bx+15+legR} 1030 L${bx+80+legR} 1030 L${bx+85+legR} 1065 L${bx+15+legR} 1065Z" fill="#fff" ${O}/>
+  <!-- body -->
+  <path d="M${bx-85} 840 L${bx-75} 680 Q${bx} 630 ${bx+75} 680 L${bx+85} 840Z" fill="${C.hood}" ${O}/>
+  <path d="M${bx-30} 760 L${bx+30} 760 L${bx+35} 800 L${bx-35} 800Z" fill="#1b1b1f"/>
+  <path d="M${bx-15} 680 l-5 50 M${bx+15} 680 l5 50" stroke="#ddd" stroke-width="4"/>
+  <!-- arms -->
+  ${shy ? `<path d="M${bx+70} 690 Q${bx+120} 620 ${hx+60} ${hy-40}" fill="none" stroke="${C.hood}" stroke-width="36" stroke-linecap="round"/>
+           <circle cx="${hx+55}" cy="${hy-45}" r="20" fill="${C.skin}" ${O}/>`
+   : excited ? `<path d="M${bx+70} 690 Q${bx+120} 600 ${bx+110} 520" fill="none" stroke="${C.hood}" stroke-width="36" stroke-linecap="round"/>
+           <circle cx="${bx+110}" cy="505" r="22" fill="${C.skin}" ${O}/>`
+   : count ? `<path d="M${bx+70} 690 Q${bx+110} 720 ${bx+60} 740" fill="none" stroke="${C.hood}" stroke-width="36" stroke-linecap="round"/>
+           <circle cx="${bx+50}" cy="735" r="20" fill="${C.skin}" ${O}/>
+           <path d="M${bx+35} 720 l-5 -30 M${bx+48} 716 l0 -34 M${bx+60} 718 l6 -30" ${O} stroke-width="10" stroke="${C.skin}"/>`
+   : `<path d="M${bx+70} 690 Q${bx+110} 760 ${bx+90} 830" fill="none" stroke="${C.hood}" stroke-width="36" stroke-linecap="round"/>
+      <circle cx="${bx+90}" cy="840" r="20" fill="${C.skin}" ${O}/>`}
+  <path d="M${bx-70} 690 Q${bx-110} 760 ${bx-90} 830" fill="none" stroke="${C.hood}" stroke-width="36" stroke-linecap="round"/>
+  <circle cx="${bx-90}" cy="840" r="20" fill="${C.skin}" ${O}/>
+  <!-- hood + neck -->
+  <path d="M${bx-60} 680 Q${bx} 720 ${bx+60} 680 Q${bx} 650 ${bx-60} 680Z" fill="#3a3a42" ${O}/>
+  <rect x="${hx-18}" y="${hy+55}" width="36" height="${680-(hy+55)}" fill="${C.skin}" ${O}/>
+  <!-- head -->
+  <ellipse cx="${hx}" cy="${hy}" rx="78" ry="82" fill="${C.skin}" ${O}/>
+  <circle cx="${hx+76}" cy="${hy+10}" r="15" fill="${C.skin}" ${O}/>
+  <path d="${hair}" fill="${C.hair}" ${O}/>
+  ${[[-45,25],[-35,35],[-55,35],[40,25],[50,35],[30,35]].map(([x,y])=>`<circle cx="${hx+x}" cy="${hy+y}" r="3.5" fill="#c46b3a"/>`).join('')}
+  <path d="M${hx-8} ${hy+5} q-12 18 4 20" fill="none" ${O3}/>
+  ${eyes}${brows}${mouth}
+  ${shy?`<ellipse cx="${hx-50}" cy="${hy+28}" rx="16" ry="8" fill="#ff8a8a" opacity=".7"/><ellipse cx="${hx+45}" cy="${hy+28}" rx="16" ry="8" fill="#ff8a8a" opacity=".7"/>`:''}`;
+}
+
+// ---------------- OVERLAYS ----------------
+function sportBike(x,y,sc,col='#e8e8ee',acc='#d6372b'){
+  return `<g transform="translate(${x},${y}) scale(${sc})">
+   <circle cx="0" cy="0" r="80" fill="#222" ${O}/><circle cx="0" cy="0" r="50" fill="#555" ${O}/>
+   <circle cx="330" cy="0" r="80" fill="#222" ${O}/><circle cx="330" cy="0" r="50" fill="#555" ${O}/>
+   <path d="M290 -190 L330 0" stroke="#e0a526" stroke-width="16"/>
+   <path d="M20 -110 L120 -150 L230 -150 L330 -200 L380 -130 L330 -60 L150 -50 L60 -80Z" fill="${col}" ${O}/>
+   <path d="M150 -140 L260 -150 L300 -90 L170 -80Z" fill="${acc}" ${O3}/>
+   <path d="M330 -200 L360 -250 L395 -170 L380 -130Z" fill="#9fd8ff" ${O}/>
+   <path d="M20 -110 L-40 -140 L-30 -100 L60 -80Z" fill="${acc}" ${O}/>
+   <path d="M0 -40 L-60 -30" stroke="#aaa" stroke-width="18" stroke-linecap="round"/>
+  </g>`;
+}
+function tinyRider(x,y,sc){ // Хрустам leaning on sportbike
+  return `<g transform="translate(${x},${y}) scale(${sc})">
+   <path d="M120 -150 L200 -260 L300 -230" fill="none" stroke="${C.hood}" stroke-width="44" stroke-linecap="round"/>
+   <path d="M120 -150 L200 -110 L190 -40" fill="none" stroke="${C.jeans}" stroke-width="36" stroke-linecap="round"/>
+   <circle cx="300" cy="-290" r="60" fill="${C.skin}" ${O}/>
+   <path d="M245 -320 L250 -380 L275 -345 L295 -395 L310 -350 L340 -385 L345 -330 Q300 -340 245 -320Z" fill="${C.hair}" ${O}/>
+   <circle cx="320" cy="-295" r="14" fill="#fff" ${O3}/><circle cx="324" cy="-295" r="6" fill="#1b1b1f"/>
+   <path d="M300 -255 q20 15 40 -5" fill="none" ${O}/>
+  </g>`;
+}
+function dream(t,p,startT){
+  const a = ease(p*4)*ease((1-p)*4);
+  const wob = Math.sin(t*3)*6;
+  const lines = Array.from({length:6},(_,i)=>{const y=330+i*35, x0=(((t-startT)*900+i*170)%700); return `<line x1="${700-x0}" y1="${y}" x2="${600-x0}" y2="${y}" stroke="#fff" stroke-width="6" stroke-linecap="round" opacity=".8"/>`}).join('');
+  return `<g opacity="${a}" transform="translate(40,-20) scale(0.86)">
+   <circle cx="560" cy="560" r="16" fill="#fff" ${O}/><circle cx="600" cy="510" r="24" fill="#fff" ${O}/>
+   <path d="M60 300 Q40 180 160 170 Q200 90 320 120 Q420 70 520 130 Q650 120 660 240 Q720 330 640 420 Q620 500 500 480 Q400 530 300 490 Q170 520 120 450 Q20 420 60 300Z" fill="#ffe7f3" ${O}/>
+   <g transform="translate(0,${wob})">${lines}${sportBike(150,440,0.75)}${tinyRider(150,440,0.75)}</g>
+   <text x="360" y="190" ${FONT} font-size="44" text-anchor="middle" fill="#d6372b" stroke="#1b1b1f" stroke-width="2">♥ ЛИТР ♥</text>
+  </g>`;
+}
+function countBubble(t,p){
+  const nums=['1','2','3','...','7','12?','9!','???'];
+  const k=Math.min(nums.length-1,Math.floor(p*nums.length));
+  return `<text x="360" y="${210-p*30}" ${FONT} font-size="110" text-anchor="middle" fill="#fff" stroke="#1b1b1f" stroke-width="4" paint-order="stroke" transform="rotate(${Math.sin(t*8)*10} 360 180)">${nums[k]}</text>`;
+}
+function gag(t,p){
+  // p 0..1 over 2.8s
+  const T = p*2.8;
+  let s = `<rect width="720" height="1280" fill="#7cc6f2"/>
+   <circle cx="600" cy="150" r="60" fill="#ffe066" ${O}/>
+   <rect y="760" width="720" height="520" fill="#6cc04a" ${O}/>
+   <rect y="860" width="720" height="200" fill="#6d6d74" ${O}/>
+   ${[0,1,2,3,4].map(i=>`<rect x="${((i*200 - T*900)%1000+1000)%1000-140}" y="950" width="90" height="16" fill="#fff"/>`).join('')}`;
+  const shake = T>1.35 && T<2.0 ? Math.sin(T*90)*12*(2.0-T) : 0;
+  // bushes on right
+  const bush = `<g transform="translate(${shake},0)">
+    ${[[520,800,110],[640,780,120],[580,700,100],[700,690,90]].map(([x,y,r])=>`<circle cx="${x}" cy="${y}" r="${r}" fill="#2f8a3a" ${O}/>`).join('')}
+    <text x="620" y="720" ${FONT} font-size="26" fill="#1f5e27" text-anchor="middle">КУСТЫ</text>
+    <text x="620" y="752" ${FONT} font-size="20" fill="#1f5e27" text-anchor="middle">(бетон)</text></g>`;
+  if (T < 1.35) {
+    const x = -500 + ease(T/1.35)*900;
+    s += bush + `<g transform="translate(${x},0) rotate(${-4} 300 900)">${Array.from({length:5},(_,i)=>`<line x1="${-60-i*30}" y1="${700+i*40}" x2="${-260-i*30}" y2="${700+i*40}" stroke="#fff" stroke-width="8" stroke-linecap="round"/>`).join('')}
+      ${sportBike(0,900,0.9)}${tinyRider(0,900,0.9)}</g>`;
+  } else {
+    // crashed: legs sticking out of the bush
+    s += `<g transform="translate(${shake},0)"><path d="M470 760 L380 640 M500 750 L430 600" stroke="${C.jeans}" stroke-width="36" stroke-linecap="round"/>
+      <path d="M350 620 L400 600 L420 640 L370 660Z M400 580 L450 570 L460 610 L410 620Z" fill="#fff" ${O}/></g>` + bush;
+    const lp = T-1.35;
+    s += Array.from({length:12},(_,i)=>{const a=i*0.53, d=lp*300; return `<ellipse cx="${600+Math.cos(a)*d}" cy="${720+Math.sin(a)*d*0.7+lp*lp*200}" rx="14" ry="7" fill="#3fae4a" ${O3} transform="rotate(${i*40+lp*400} ${600+Math.cos(a)*d} ${720+Math.sin(a)*d*0.7+lp*lp*200})"/>`}).join('');
+    const z = 1+0.2*Math.sin(lp*20)*Math.max(0,1-lp);
+    s += `<g transform="translate(360,420) scale(${z}) rotate(-8)">
+      <path d="M-260 0 L-200 -60 L-220 -140 L-120 -100 L-60 -180 L0 -110 L90 -170 L120 -90 L230 -110 L190 -20 L270 40 L170 70 L200 160 L90 110 L20 190 L-30 110 L-140 170 L-130 80 L-250 90Z" fill="#ffd23f" ${O}/>
+      <text x="0" y="35" ${FONT} font-size="110" text-anchor="middle" fill="#d6372b" stroke="#1b1b1f" stroke-width="4" paint-order="stroke">БДЫЩ!</text></g>`;
+    if (lp>0.6) s += `<text x="360" y="1180" ${FONT} font-size="44" text-anchor="middle" fill="#fff" stroke="#1b1b1f" stroke-width="4" paint-order="stroke" opacity="${ease((lp-0.6)*3)}">«я в порядке...»</text>`;
+  }
+  return s;
+}
+function title(t,p){
+  const T=p*3.6, sh = T>0.9&&T<2.5 ? Math.sin(T*70)*5 : 0;
+  const a = ease(T/0.5);
+  return `<rect width="720" height="1280" fill="#15121c"/>
+   ${Array.from({length:14},(_,i)=>`<line x1="${360+Math.cos(i*0.45)*80}" y1="${640+Math.sin(i*0.45)*80}" x2="${360+Math.cos(i*0.45)*900}" y2="${640+Math.sin(i*0.45)*900}" stroke="#2a2335" stroke-width="40"/>`).join('')}
+   <g transform="translate(${sh},${-sh/2})" opacity="${a}">
+   ${sportBike(180,860,0.6,'#f0c419','#1b1b1f')}
+   <path d="M430 760 L720 640 L720 900Z" fill="#fff8b0" opacity="${0.25+0.15*Math.sin(T*20)}"/>
+   <text x="360" y="470" ${FONT} font-size="118" text-anchor="middle" fill="#ffb02e" stroke="#1b1b1f" stroke-width="8" paint-order="stroke" transform="rotate(-5 360 450)">ХРУСТАМ</text>
+   <text x="360" y="560" ${FONT} font-size="44" text-anchor="middle" fill="#fff">СЕРИЯ 1</text>
+   <text x="360" y="1040" ${FONT} font-size="64" text-anchor="middle" fill="#ff5a4a" stroke="#1b1b1f" stroke-width="4" paint-order="stroke" opacity="${ease((T-0.8)/0.4)}">«ЛИТР В КУСТАХ»</text>
+   <text x="360" y="1130" ${FONT} font-size="30" text-anchor="middle" fill="#9a93aa" opacity="${ease((T-1.4)/0.4)}">продолжение следует...</text>
+   </g>`;
+}
+
+// ---------------- SUBTITLES ----------------
+function wrap(text, n){ const w=text.split(' '); const out=[]; let cur='';
+  for(const x of w){ if((cur+' '+x).trim().length>n){ out.push(cur.trim()); cur=x; } else cur+=' '+x; }
+  if(cur.trim()) out.push(cur.trim()); return out; }
+function subtitle(t){
+  const l=lineAt(t); if(!l) return '';
+  // show sentence-chunks: split long line into pieces over time
+  const parts = l.text.match(/[^.!?…]+[.!?…]*/g).map(s=>s.trim()).filter(Boolean);
+  const chunks=[]; let cur='';
+  for(const p of parts){ if((cur+' '+p).length>60 && cur){ chunks.push(cur.trim()); cur=p; } else cur+=' '+p; }
+  if(cur.trim()) chunks.push(cur.trim());
+  const total = chunks.reduce((a,c)=>a+c.length,0); let acc=0, k=0;
+  const frac=(t-l.start)/(l.end-l.start);
+  for(k=0;k<chunks.length;k++){ acc+=chunks[k].length; if(frac<=acc/total) break; }
+  const rows = wrap(chunks[Math.min(k,chunks.length-1)], 24);
+  const name = l.spk==='K' ? 'ДЕД КАРДАН' : 'ХРУСТАМ';
+  const col = l.spk==='K' ? '#ffb02e' : '#ff6a4a';
+  const h = 60 + rows.length*52, y0 = 1265-h;
+  return `<rect x="30" y="${y0}" width="660" height="${h}" rx="22" fill="#000" opacity=".62"/>
+   <text x="360" y="${y0+40}" ${FONT} font-size="30" fill="${col}" text-anchor="middle">${name}</text>
+   ${rows.map((r,i)=>`<text x="360" y="${y0+88+i*52}" font-family="'DejaVu Sans', Arial, sans-serif" font-weight="700" font-size="40" fill="#fff" text-anchor="middle">${r}</text>`).join('')}`;
+}
+
+// ---------------- MAIN ----------------
+const CAMS = { wide:{s:1,x:360,y:640}, K:{s:1.75,x:215,y:640}, H:{s:1.75,x:520,y:650} };
+function render(t){
+  const sh = shotAt(t);
+  const p = (t-sh.start)/(sh.end-sh.start);
+  let body='';
+  if (sh.cam==='gag') body = gag(t,p);
+  else if (sh.cam==='title') body = title(t,p);
+  else {
+    const rv = firstShot('reveal'); const revealT = rv ? rv.start + rv.reveal : null;
+    const st = { K:{}, H:{} };
+    if (sh.enter) st.H.enterP = p;
+    if (sh.spit) { st.K.spit=true; st.K.spitP=p; }
+    if (sh.shy) st.H.shy = true;
+    if (sh.count) st.H.count = true;
+    if (sh.laugh && p>0.72) st.K.laugh = true;
+    if (sh.thumb) st.K.thumb = true;
+    if (sh.dream) st.H.excited = true;
+    const c = CAMS[sh.cam] || CAMS.wide;
+    const tx = 360 - c.x*c.s, ty = 640 - c.y*c.s;
+    body = `<g transform="translate(${tx},${ty}) scale(${c.s})">
+       ${garage(t, revealT!==null && t>=revealT ? revealT : null)}
+       ${kardan(t, st.K)}${hrustam(t, st.H)}</g>`;
+    if (sh.dream) body += dream(t,p,sh.start);
+    if (sh.count) body += countBubble(t,p);
+    if (sh.laugh && p>0.72) body += `<text x="360" y="200" text-anchor="middle" ${FONT} font-size="80" fill="#fff" stroke="#1b1b1f" stroke-width="5" paint-order="stroke" transform="rotate(-6 360 200)">КХЕ-КХЕ-КХЕ!</text>`;
+  }
+  document.getElementById('s').innerHTML = body + subtitle(t);
+}
+
+</script></body></html>
