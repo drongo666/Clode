@@ -3,7 +3,7 @@
 Usage: python3 build_audio.py   (run from cartoon/ep01)
 Needs: piper-tts, ffmpeg, voices in ../voices/
 """
-import json, os, subprocess, wave
+import json, os, re, subprocess, wave
 import numpy as np
 
 SR = 44100
@@ -25,10 +25,10 @@ SEQ = [
     ('pause', 1.4, 'wide', {'enter': True, 'sfx': 'steps'}),
     ('line', 'H', 'Дед Асфальт! Я решил! Покупаю байк!', 'wide', {}),
     ('line', 'K', 'О-о-о, Хрустик. Ещё один первосезо́нник. Ну, садись. Какой хочешь?', 'K', {}),
-    ('line', 'H', 'Спортбайк! Литр! Сотня за три секунды!', 'wide', {'dream': True}),
+    ('line', 'H', '[excited] Спортбайк! Литр! Сотня за три секунды!', 'wide', {'dream': True}),
     ('pause', 1.0, 'wide', {'spit': True, 'sfx': 'spit'}),
-    ('line', 'K', 'Литр?! Сынок, ты на велосипеде без рук ездить умеешь?', 'K', {}),
-    ('line', 'H', 'Ну... один раз пробовал. В кусты.', 'H', {'shy': True}),
+    ('line', 'K', '[shocked] Литр?! Сынок, ты на велосипеде без рук ездить умеешь?', 'K', {}),
+    ('line', 'H', '[embarrassed] Ну... один раз пробовал. В кусты.', 'H', {'shy': True}),
     ('line', 'K', 'Вот. Литр — это те же кусты. Только на двухстах. И кусты из бетона.', 'K', {}),
     ('pause', 2.8, 'gag', {'sfx': 'gag'}),
     ('line', 'H', 'Но он же красивый! Обвес, выхлоп, колено по асфальту!', 'wide', {'dream': True}),
@@ -41,9 +41,9 @@ SEQ = [
     ('line', 'H', 'А спорт когда?', 'H', {}),
     ('line', 'K', 'Сезона через два. Запомни: байкеры бывают двух типов. Которые уже падали. И которые ещё упадут.', 'K', {}),
     ('line', 'H', 'А ты, дед, какой?', 'H', {}),
-    ('line', 'K', 'Я третий. Я падал столько, что асфальт меня сам объезжает. Потому я и Асфальт. Кхе-кхе-кхе!', 'K', {'laugh': True}),
+    ('line', 'K', 'Я третий. Я падал столько, что асфальт меня сам объезжает. Потому я и Асфальт. [laughs] Кхе-кхе-кхе!', 'K', {'laugh': True}),
     ('line', 'H', 'Ладно... Беру дорожник. Но покрашу как спорт!', 'wide', {}),
-    ('line', 'K', 'Вот это по-нашему!', 'wide', {'thumb': True}),
+    ('line', 'K', '[laughs] Вот это по-нашему!', 'wide', {'thumb': True}),
     ('pause', 3.6, 'title', {'sfx': 'rev'}),
 ]
 GAP = 0.3
@@ -86,7 +86,46 @@ def env(n, a, d):
     return e
 
 
+# ElevenLabs: ENGINE=eleven ELEVEN_KEY_FILE=/path/to/key python3 build_audio.py
+ENGINE = os.environ.get('ENGINE', 'piper')
+ELEVEN_VOICE = {
+    'K': os.environ.get('VOICE_K', 'N2lVS1w4EtoT3dr4eOWO'),  # Callum
+    'H': os.environ.get('VOICE_H', 'IKne3meq5aSn9XLyUdCD'),  # Charlie
+}
+CACHE = os.path.join(HERE, 'voice_cache')
+
+
+def tts_eleven(spk, text, idx):
+    import hashlib, urllib.request
+    os.makedirs(CACHE, exist_ok=True)
+    vid = ELEVEN_VOICE[spk]
+    h = hashlib.sha1(f'{vid}|{text}'.encode()).hexdigest()[:16]
+    mp3 = os.path.join(CACHE, f'{spk}_{h}.mp3')
+    if not os.path.exists(mp3):  # кэш, чтобы не тратить символы повторно
+        key = open(os.environ['ELEVEN_KEY_FILE']).read().strip()
+        body = json.dumps({'text': text, 'model_id': 'eleven_v3',
+                           'voice_settings': {'stability': 0.5, 'similarity_boost': 0.8}}).encode()
+        req = urllib.request.Request(
+            f'https://api.elevenlabs.io/v1/text-to-speech/{vid}?output_format=mp3_44100_128',
+            data=body, headers={'xi-api-key': key, 'Content-Type': 'application/json'})
+        open(mp3, 'wb').write(urllib.request.urlopen(req).read())
+    wav = os.path.join(OUT, f'line_{idx:02d}.wav')
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', mp3,
+                    '-af', 'silenceremove=start_periods=1:start_threshold=-45dB,areverse,'
+                           'silenceremove=start_periods=1:start_threshold=-45dB,areverse',
+                    '-ar', str(SR), '-ac', '1', wav], check=True)
+    x = read_wav(wav)
+    return x / (np.abs(x).max() + 1e-6) * 0.9
+
+
+def clean(text):
+    return re.sub(r'\[[^\]]*\]\s*', '', text.replace('\u0301', '')).strip()
+
+
 def tts(spk, text, idx):
+    if ENGINE == 'eleven':
+        return tts_eleven(spk, text, idx)
+    text = clean(text)
     model, ls, pitch, tempo = VOICE[spk]
     raw = os.path.join(OUT, f'raw_{idx:02d}.wav')
     proc = os.path.join(OUT, f'line_{idx:02d}.wav')
@@ -222,7 +261,7 @@ def main():
             start = t; dur = len(x) / SR
             voice_track.append((start, x))
             lines.append({'start': round(start, 3), 'end': round(start + dur, 3), 'spk': spk,
-                          'text': text.replace('́', ''), 'env': lip_env(x), **ex})
+                          'text': clean(text), 'env': lip_env(x), **ex})
             t += dur + GAP
         shots.append({'start': round(start, 3), 'end': round(t, 3), 'cam': cam, **ex})
         if 'sfx' in ex:
